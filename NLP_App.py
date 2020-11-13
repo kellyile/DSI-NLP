@@ -75,7 +75,7 @@ danger_html = """
 
 toxic_html = """  
               <div style="background-color:#ce1d1d;height:40px;width: 100%">
-                <h2 style="color:white;text-align:center;"><b> {} </b></h2>
+                <h2 style="color:white;text-align:center;"><b>Class 1: {}. Class 2: {}</b></h2>
               </div>
               """
 
@@ -291,29 +291,63 @@ if page == "Toxic Comment Classifier (multi-class)":
             return loss, cls_output
 
 
-    def predict(input_string, model_path, predict_proba=False):
-        model = torch.load(model_path, map_location=torch.device('cpu'))
-        texts = []
-        text = tokenizer.encode(input_string, add_special_tokens=True)
-        if len(text) > 120:
-            text = text[:119] + [tokenizer.sep_token_id]
-        texts.append(torch.LongTensor(text))
-        x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
-        mask = (x != tokenizer.pad_token_id).float().to(device)
-        with torch.no_grad():
-            _, outputs = model(x, attention_mask=mask)
-        pred = np.argmax(outputs.cpu().numpy())
-        columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
-        # st.markdown(columns[pred])
-        st.markdown(toxic_html.format(columns[pred]), unsafe_allow_html=True)
+    class BertClassifier(nn.Module):
 
-        st.markdown(white_space_html, unsafe_allow_html=True)
-        spacy_streamlit.visualize_ner(docx, labels=nlp.get_pipe('ner').labels)
+        def __init__(self, bert: BertModel, num_classes: int):
+            super().__init__()
+            self.bert = bert
+            self.classifier = nn.Linear(bert.config.hidden_size, num_classes)
+
+        def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+
+                    labels=None):
+            outputs = self.bert(input_ids,
+                                attention_mask=attention_mask,
+                                token_type_ids=token_type_ids,
+                                position_ids=position_ids,
+                                head_mask=head_mask)
+            cls_output = outputs[1]  # batch, hidden
+            cls_output = self.classifier(cls_output)  # batch, 6
+            cls_output = torch.sigmoid(cls_output)
+            criterion = nn.BCELoss()
+            loss = 0
+            if labels is not None:
+                loss = criterion(cls_output, labels)
+            return loss, cls_output
+
+    def predict(text, model):
+        tokens = tokenizer.encode(text, add_special_tokens=True)
+        if len(tokens) > 120:
+            tokens = tokens[:119] + [tokens[-1]]
+        x = torch.LongTensor(tokens)
+        # y = torch.FloatTensor(row[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]])
+        mask = (x != 0).float()
+        with torch.no_grad():
+            loss, outputs = model(x.unsqueeze(0), attention_mask=mask.unsqueeze(0))  # , labels=y)
+        return outputs[0].numpy().tolist()
 
     if comment != "":
         docx = nlp(comment)
+        bert_model_name = 'bert-base-cased'
+        tokenizer = BertTokenizer.from_pretrained(bert_model_name)
         path = r"C:\Users\kile\Downloads\Models\model.pt"
-        predict(comment, path)
+        model = torch.load(path, map_location=torch.device('cpu'))
+        model.eval()
+        pred = predict(comment, model)
+        class_index = np.argmax(pred)
+        toxic_types = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
+        pred_df = pd.DataFrame(pred)
+        pred_df.index = toxic_types
+        pred_df.rename(columns={0: 'Class'}, inplace=True)
+        toxic_class = pred_df.nlargest(2, ["Class"]).index[0]
+        toxic_class2 = pred_df.nlargest(2, ["Class"]).index[1]
+        st.markdown(toxic_html.format(toxic_class, toxic_class2), unsafe_allow_html=True)
+        st.markdown(white_space_html, unsafe_allow_html=True)
+        spacy_streamlit.visualize_ner(docx, labels=nlp.get_pipe('ner').labels)
+        chart_data = pd.DataFrame(np.random.randn(50, 3), columns=["a", "b", "c"])
+        st.markdown("## Class probabilities")
+        st.bar_chart(pred_df)
+        # plt.barh(["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"], pred)
 
 if page == "Benefits of NLP":
 
