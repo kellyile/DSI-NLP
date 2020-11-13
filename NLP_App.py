@@ -12,14 +12,10 @@ import markdown
 import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
-from plotly import express as px
 import pydeck as pdk
 import numpy as np
+
 nlp = en_core_web_sm.load()
-
-
-
-# matplotlib.use("TkAgg")
 matplotlib.use("Agg")
 COLOR = "black"
 BACKGROUND_COLOR = "#fff"
@@ -131,6 +127,7 @@ def _set_block_container_style(
     """,
         unsafe_allow_html=True,
     )
+
 
 select_block_container_style()
 
@@ -392,24 +389,6 @@ if page == "Benefits of NLP":
         def markdown(self, text):
             self.inner_html = markdown.markdown(text)
 
-        def dataframe(self, dataframe: pd.DataFrame):
-            self.inner_html = dataframe.to_html()
-
-        def plotly_chart(self, fig):
-            self.inner_html = f"""
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-        <body>
-            <p>This should have been a plotly plot.
-            But since *script* tags are removed when inserting MarkDown/ HTML i cannot get it to workto work.
-            But I could potentially save to svg and insert that.</p>
-            <div id='divPlotly'></div>
-            <script>
-                var plotly_data = {fig.to_json()}
-                Plotly.react('divPlotly', plotly_data.data, plotly_data.layout);
-            </script>
-        </body>
-        """
-
         def pyplot(self, fig=None, **kwargs):
             string_io = io.StringIO()
             plt.savefig(string_io, format="svg", fig=(2, 2))
@@ -500,35 +479,6 @@ if page == "Benefits of NLP":
             self.cells.append(cell)
             return cell
 
-
-    @st.cache
-    def get_dataframe() -> pd.DataFrame():
-        """Dummy DataFrame"""
-        data = [
-            {"quantity": 1, "price": 2},
-            {"quantity": 3, "price": 5},
-            {"quantity": 4, "price": 8},
-        ]
-        return pd.DataFrame(data)
-
-
-    def get_plotly_fig():
-        """Dummy Plotly Plot"""
-        return px.line(data_frame=get_dataframe(), x="quantity", y="price")
-
-
-    def get_matplotlib_plt():
-        get_dataframe().plot(kind="line", x="quantity", y="price", figsize=(5, 3))
-
-
-    # def image(self, image_path, width="150px", height="200px", caption=""):
-    #     data_uri = base64.b64encode(open(image_path, 'rb').read()).decode('utf-8')
-    #     img_tag = '<br><figure ><center><img src="data:image/png;base64,{0}" width={2} height={3} ><figcaption>{1}</figcaption></center></figure>'.format(
-    #         (data_uri, caption, width, height))
-    #     self.inner_html = """<body>{0}</body>""".format(img_tag)
-
-
-        # My preliminary idea of an API for generating a grid
     with Grid("1 1 1", color=COLOR, background_color=BACKGROUND_COLOR) as grid:
         grid.cell(
             class_="a",
@@ -561,20 +511,6 @@ if page == "Get in Touch":
         'lat': [-34.107210],
         'lon': [18.470510]
     })
-    # st.pydeck_chart(
-    #     viewport={
-    #         'latitude': -34.107210,
-    #         'longitude':  18.470510,
-    #         'zoom': 4
-    #             },
-    #     layers=[{
-    #         'type': 'ScatterplotLayer',
-    #         'data': data,
-    #         'radiusScale': 250,
-    #         'radiusMinPixels': 5,
-    #         'getFillColor': [248, 24, 148],
-    #     }]
-    # )
 
     st.pydeck_chart(pdk.Deck(
         map_style='mapbox://styles/mapbox/light-v9',
